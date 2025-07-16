@@ -148,8 +148,8 @@ def ping(host: str, seq: int, id: int) -> Tuple[IPHeader, ICMPEcho, float]:
         sock.sendto(packet, (host, 0))
         ip_header, payload = parse_ip_datagram(sock.recvfrom(4096)[0])
         response_time = time.time()
-        print(ip_header, payload)
         echo_reply = ICMPEcho.from_bytes(payload)
         # print_response(ip_header, echo_reply)
+        print(ip_header, echo_reply)
         rtt = (response_time - send_time) * 1000
         return (ip_header, echo_reply, rtt)
