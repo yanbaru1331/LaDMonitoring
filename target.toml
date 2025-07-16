@@ -1,1 +1,1 @@
-targets = [{ "name" = "google", "ip" = "100.97.146.96" }]
+targets = [{ "name" = "google", "ip" = "8.8.8.8" }]

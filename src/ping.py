@@ -4,6 +4,7 @@ from typing import Optional
 import socket
 from contextlib import contextmanager
 from typing import Tuple
+import time
 
 
 import struct
@@ -123,12 +124,15 @@ def print_response(ip_header: IPHeader, echo_reply: ICMPEcho) -> None:
     )
 
 
-def ping(host: str, seq: int, id: int) -> Tuple[IPHeader, ICMPEcho]:
+def ping(host: str, seq: int, id: int) -> Tuple[IPHeader, ICMPEcho, float]:
     # def ping(host: str, seq: int, id: int) -> None:
     with raw_socket() as sock:
         packet = ICMPEcho(ICMPType.ECHO, 0, id, seq, b"\xff").to_bytes()
+        send_time = time.time()
         sock.sendto(packet, (host, 0))
         ip_header, payload = parse_ip_datagram(sock.recvfrom(4096)[0])
+        response_time = time.time()
         echo_reply = ICMPEcho.from_bytes(payload)
         # print_response(ip_header, echo_reply)
-        return (ip_header, echo_reply)
+        rtt = (response_time - send_time) * 1000
+        return (ip_header, echo_reply, rtt)
