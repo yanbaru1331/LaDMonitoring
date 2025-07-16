@@ -1,0 +1,1 @@
+hostname IPaddress Loss TTL RTT RESULT

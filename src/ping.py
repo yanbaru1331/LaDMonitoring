@@ -11,8 +11,24 @@ import struct
 
 
 class ICMPType(Enum):
+    # 正常系
     ECHOREPLY = 0
     ECHO = 8
+    ROUTERE_ADVERT = 9
+    ROUTER_SELECTION = 10
+    TIMESTAMP_REQUEST = 13
+    TIMESTAMP_REPLY = 14
+    INFORMATION_REQUEST = 15
+    INFORMATION_REPLY = 16
+    ADDMASK_REQUEST = 17
+    ADDMASK_REPLY = 18
+
+    # エラー系
+    DESTINATION_UNREACHABLE = 3
+    SOUCE_QUENCH = 4
+    REDIRECT = 5
+    TIME_EXCEEDED = 11
+    PARAM_PROBLEM = 12
 
     def __int__(self):
         return self.value
@@ -132,6 +148,7 @@ def ping(host: str, seq: int, id: int) -> Tuple[IPHeader, ICMPEcho, float]:
         sock.sendto(packet, (host, 0))
         ip_header, payload = parse_ip_datagram(sock.recvfrom(4096)[0])
         response_time = time.time()
+        print(ip_header, payload)
         echo_reply = ICMPEcho.from_bytes(payload)
         # print_response(ip_header, echo_reply)
         rtt = (response_time - send_time) * 1000
