@@ -1,1 +1,6 @@
-targets = [{ "name" = "google", "ip" = "8.8.8.8" }]
+targets = [
+    { "name" = "google", "ip" = "8.8.8.8" },
+    { "name" = "myHouse", "ip" = "192.168.1.1" },
+    { "name" = "cloudFlare", "ip" = "1.1.1.1" },
+    { "name" = "tmcit", "ip" = "172.24.2.51" },
+]

@@ -90,7 +90,6 @@ class IPHeader:
         )
         v = v_hl >> 4
         hl = v_hl & 0x0F
-
         return IPHeader(
             v,
             hl,
@@ -140,16 +139,39 @@ def print_response(ip_header: IPHeader, echo_reply: ICMPEcho) -> None:
     )
 
 
-def ping(host: str, seq: int, id: int) -> Tuple[IPHeader, ICMPEcho, float]:
-    # def ping(host: str, seq: int, id: int) -> None:
+def ping(
+    host: str, seq: int, id: int, timeout: int = 5
+) -> Optional[Tuple[IPHeader, ICMPEcho, float]]:
     with raw_socket() as sock:
+        sock.settimeout(timeout)
         packet = ICMPEcho(ICMPType.ECHO, 0, id, seq, b"\xff").to_bytes()
-        send_time = time.time()
+
         sock.sendto(packet, (host, 0))
-        ip_header, payload = parse_ip_datagram(sock.recvfrom(4096)[0])
-        response_time = time.time()
-        echo_reply = ICMPEcho.from_bytes(payload)
-        # print_response(ip_header, echo_reply)
-        print(ip_header, echo_reply)
-        rtt = (response_time - send_time) * 1000
-        return (ip_header, echo_reply, rtt)
+        send_time = time.time()
+        while True:
+            try:
+                data, addr = sock.recvfrom(4096)
+                response_time = time.time()
+
+                ip_header, payload = parse_ip_datagram(data)
+                echo_reply = ICMPEcho.from_bytes(payload)
+
+                if echo_reply.id == id:
+                    if echo_reply.type == ICMPType.ECHOREPLY:
+                        rtt = (response_time - send_time) * 1000
+                        return (ip_header, echo_reply, rtt)
+                    return None, None, None
+            except socket.timeout:
+                return None, None, None
+
+
+if __name__ == "__main__":
+    # Example usage
+    host = "192.168.1.1"
+    seq = 1
+    id = 1
+    i, e, r = ping(host, seq, id)
+    if i or e or r is None:
+        print("Ping failed or timed out")
+    else:
+        print(i, e, r)
