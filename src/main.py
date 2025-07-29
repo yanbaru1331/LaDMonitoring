@@ -18,7 +18,7 @@ RTT_SCALE = 10
 # richのコンソールを初期化
 console = Console()
 
-toml_path = "./target.toml"
+toml_path = "./__targetfiles__/target.toml"
 toml_data = toml.load(toml_path)
 
 
@@ -112,10 +112,6 @@ def worker_ping(host, seq, id):
     try:
         ip_header, echo_reply, rtt = ping.ping(host["ip"], seq, id)
         if ip_header is None and echo_reply is None and rtt is None:
-            # ここに到達した場合、ping.pingがNone, None, Noneを返したことを意味する
-            print(
-                f"DEBUG: {host['name']} - ping.pingが(None, None, None)を返しました。status: 'failure'を返します。"
-            )
             return {"name": host["name"], "status": "failure"}
         return {
             "name": host["name"],
@@ -155,10 +151,7 @@ async def consumer(queue, live):
     """Consumer: キューから結果を受け取り、テーブルを更新する"""
     while True:
         result = await queue.get()
-        # print(queue) # この行はデバッグには不要なので削除を推奨
-        print(
-            f"DEBUG: {result['name']} の結果を受信しました: status='{result['status']}'"
-        )  # 追加
+
         host_name = result["name"]
         if result["status"] == "success":
             rtt = result["rtt"]
@@ -184,9 +177,6 @@ async def consumer(queue, live):
 
 
 async def main(sleep_interval: int = 1):
-    """
-    メイン関数：ProducerとConsumerをセットアップして実行する
-    """
     queue = asyncio.Queue()
 
     with Live(generate_table(monitor_table), refresh_per_second=4, screen=True) as live:
