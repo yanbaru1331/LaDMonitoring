@@ -1,5 +1,6 @@
 import asyncio
 import ping
+import tcp
 import toml
 from rich.live import Live
 from rich.table import Table
@@ -106,9 +107,7 @@ def generate_table(monitor_data):
 
 
 def worker_ping(host, seq, id):
-    """
-    個別のスレッドでpingを実行し、結果を辞書として返すワーカー関数。
-    """
+
     try:
         ip_header, echo_reply, rtt = ping.ping(host["ip"], seq, id)
         if ip_header is None and echo_reply is None and rtt is None:
@@ -128,20 +127,46 @@ def worker_ping(host, seq, id):
         return {"name": host["name"], "status": "failure"}
 
 
+def worker_tcp(host, port, timeout=5):
+    try:
+        response_data = tcp.tcp_com(host["ip"], 80, timeout)
+        if response_data is None:
+            return {"name": host["name"], "status": "failure"}
+        return {
+            "name": host["name"],
+            "status": "success",
+            "type": response_data[0],
+            "rtt": int(response_data[1]),
+            "ttl": 0,  # TCPではTTLは通常使用しないため、0を設定
+        }
+    except Exception as e:
+        print(f"DEBUG: {host['name']} - worker_tcpで例外が発生しました: {e}")
+        return {"name": host["name"], "status": "failure"}
+
+
 async def producer(queue, host, id, sleep_interval):
     """Producer: 定期的にpingを実行し、結果をキューに入れる"""
     seq = 0
     while True:
         seq += 1
-        try:
-            # 同期的なping関数を別スレッドで実行
-            result = await asyncio.wait_for(
-                asyncio.to_thread(worker_ping, host, seq, id), timeout=4
-            )
-            await queue.put(result)
-        except Exception:
-            res = {"name": host["name"], "status": "failure"}
-            await queue.put(res)
+
+        # tomlにtype="tcp"が指定されているかチェック
+        if host.get("type") == "tcp":
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(worker_tcp, host, 80), timeout=4
+                )
+            except Exception as e:
+                print(f"DEBUG: {host['name']} - TCP pingで例外が発生しました: {e}")
+                result = {"name": host["name"], "status": "failure"}
+        else:  # デフォルトまたは type="icmp" の場合はICMP ping
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(worker_ping, host, seq, id), timeout=4
+                )
+            except Exception:
+                result = {"name": host["name"], "status": "failure"}
+        await queue.put(result)
 
         # 次のサイクルまで待機
         await asyncio.sleep(sleep_interval)
@@ -188,7 +213,6 @@ async def main(sleep_interval: int = 1):
             asyncio.create_task(producer(queue, host, id, sleep_interval))
             for id, host in enumerate(toml_data["targets"])
         ]
-
         all_tasks = producer_tasks + [consumer_task]
         try:
             await asyncio.gather(*all_tasks)

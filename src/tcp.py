@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from contextlib import contextmanager
+import re
 
 # import subprocess # No longer needed
 # from scapy.all import * # No longer needed
@@ -104,7 +105,6 @@ class TCPHeader:
         return struct.pack(
             "!HHIIHHHH",
             self.src_port,
-
             self.dst_port,
             self.seq,
             self.ack_seq,
@@ -158,7 +158,6 @@ def calc_checksum(data: bytes) -> int:
 
 @contextmanager
 def stream_socket():
-    # Use a standard TCP stream socket. The OS will handle the TCP/IP stack.
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         yield sock
@@ -166,61 +165,27 @@ def stream_socket():
         sock.close()
 
 
-def tcp_handshake(host: str, port: int, timeout: int = TIMEOUT) -> Optional[float]:
-    """
-    Performs a TCP handshake using a standard SOCK_STREAM socket and measures the RTT.
-    With SOCK_STREAM, the handshake is handled by the OS during the connect() call.
-    This function cannot return IP or TCP headers.
-    """
-    try:
-        remote_ip = socket.gethostbyname(host)
-        with stream_socket() as sock:
-            sock.settimeout(timeout)
-            start_time = time.time()
-            sock.connect((remote_ip, port))
-            end_time = time.time()
-            # The connection is immediately closed by the 'with' statement's exit.
-            # This is just to measure the handshake time.
-            rtt = end_time - start_time
-            print(f"TCP Handshake with {host}:{port} successful. RTT: {rtt * 1000:.2f} ms")
-            return rtt
-    except socket.timeout:
-        print(f"Socket timed out during connection to {host}:{port}.")
-        return None
-    except Exception as e:
-        print(f"An error occurred during handshake with {host}:{port}: {e}")
-        return None
-
-
 def tcp_com(host: str, port: int, timeout: int = TIMEOUT) -> Optional[bytes]:
-    """
-    Establishes a TCP connection, sends an HTTP GET request, and receives the response.
-    Uses a standard SOCK_STREAM socket, so the OS handles packet creation.
-    """
+
     try:
         remote_ip = socket.gethostbyname(host)
         with stream_socket() as sock:
             sock.settimeout(timeout)
-            print(f"Connecting to {host} ({remote_ip}) on port {port}...")
             sock.connect((remote_ip, port))
-            print("Connection successful.")
 
-            # Prepare a simple HTTP GET request.
-            # "Connection: close" tells the server to close the socket after responding.
             request = f"GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
-            print("Sending HTTP GET request...")
-            sock.sendall(request.encode())
-
-            print("Receiving response...")
+            sock.send(request.encode())
+            send_time = time.time()
             response = b""
             while True:
                 data = sock.recv(4096)
                 if not data:
                     break  # Connection closed by the server
                 response += data
-
-            print("Full response received.")
-            return response
+            response_time = time.time()
+            rtt = (response_time - send_time) * 1000
+            match = re.search(r"HTTP/\d\.\d (\d{3})", response.decode(errors="ignore"))
+            return [match.group(1), rtt]
 
     except socket.timeout:
         print("Socket timed out.")
@@ -236,20 +201,10 @@ if __name__ == "__main__":
     # The response will contain the redirect information.
     host = "www.google.com"
     port = 80
-
-    print("-" * 30)
-    print(f"Attempting to fetch content from http://{host}:{port}")
-    print("-" * 30)
-
     response_data = tcp_com(host, port)
 
     if response_data:
-        print("-" * 30)
-        print(f"Successfully received response from {host}:{port}.")
-        print("Response (decoded as UTF-8, ignoring errors):")
-        print("-" * 30)
-        print(response_data.decode(errors="ignore"))
-        print("-" * 30)
+        print(response_data)  # Print the HTTP status code
     else:
         print("-" * 30)
         print(f"Failed to get a response from {host}:{port}.")
